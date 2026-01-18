@@ -1,13 +1,18 @@
+# input/voice_input.py
 import speech_recognition as sr
 
-def listen():
-    r = sr.Recognizer()
+def listen_from_mic():
+    recognizer = sr.Recognizer()
+
     with sr.Microphone() as source:
         print("Listening...")
-        audio = r.listen(source)
+        recognizer.adjust_for_ambient_noise(source, duration=0.5)
+        audio = recognizer.listen(source)
 
     try:
-        text = r.recognize_google(audio)
-        return text
-    except Exception:
-        return ""
+        text = recognizer.recognize_google(audio)
+        return text.lower()
+    except sr.UnknownValueError:
+        return "sorry, i did not understand"
+    except sr.RequestError:
+        return "speech service unavailable"

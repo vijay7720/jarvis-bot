@@ -1,32 +1,50 @@
 from input.voice_input import listen
-from input.chat_ui import start_chat
+from input.chat_ui import JarvisUI
 from executor.system_tasks import open_app
 from executor.file_tasks import create_folder_on_desktop
 import threading
+import time
+
+
+ui = None
+
 
 def handle_command(text):
     if not text:
         return
 
+
     text = text.lower()
-    print("Command:", text)
+
 
     if "open chrome" in text:
+        ui.add_message("⚙️ Executing: Open Chrome")
         open_app("chrome")
+        ui.add_message("✅ Done: Chrome opened")
+
 
     elif "create folder" in text:
-        create_folder_on_desktop("C:/Users/vijay/Documents/Deepak/NewFolder")
+        ui.add_message("⚙️ Executing: Create Folder")
+        create_folder_on_desktop("NewFolder")
+        ui.add_message("✅ Done: Folder created")
+
 
     else:
-        print("Command not recognized")
+        ui.add_message("❌ Sorry, I didn’t understand that")
+
+
+    ui.set_status("🎤 Listening...")
+
+
+
 
 def voice_loop():
     while True:
-        text = listen()
+        text = listen(ui)
         handle_command(text)
+        time.sleep(0.5)
 
-# Run voice listener in background
+
+ui = JarvisUI(handle_command)
 threading.Thread(target=voice_loop, daemon=True).start()
-
-# Start chat UI
-start_chat(handle_command)
+ui.start()
