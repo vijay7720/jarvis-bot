@@ -117,23 +117,32 @@ class JarvisHUD(QMainWindow):
 
     # ---------------- Actions ----------------
     def listen_action(self):
-        # Update UI: Listening
         self.core_display.setText("🎤 Listening…")
         QApplication.processEvents()
 
-        # Voice input
         command = listen_from_mic()
         self.chat.append(f"You: {command}")
 
-        # Processing
         self.core_display.setText("⚙ Processing…")
         QApplication.processEvents()
 
-        result = process_command(command)
+        response = process_command(command)
 
-        # Output
+        # 1️⃣ Acknowledge
+        if response.get("ack"):
+            self.chat.append(f"Jarvis: {response['ack']}")
+            self.voice.speak(response["ack"])
+
+        # Small pause feels natural
+        QTimer.singleShot(600, lambda: self._final_response(response))
+
+    def _final_response(self, response):
+        result = response.get("result", "")
+
         self.chat.append(f"Jarvis: {result}")
-        self.core_display.setText("✅ Command Executed")
+        self.core_display.setText(
+            "✅ Task Completed" if response.get("success") else "❌ Task Failed"
+        )
 
         self.voice.speak(result)
 
