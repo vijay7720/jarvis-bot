@@ -14,6 +14,7 @@ from PyQt6.QtGui import QFont
 
 from input.voice_input import listen_from_mic
 from core.command_processor import process_command
+from input.wake_listener import wait_for_wake_word
 
 # ---------------- Voice Engine (THREAD-SAFE) ----------------
 import pyttsx3
@@ -39,6 +40,8 @@ class VoiceEngine:
 # ---------------- Main Window ----------------
 class JarvisHUD(QMainWindow):
     def __init__(self):
+        
+
         super().__init__()
 
         self.setWindowTitle("STARK_IND_OS v4.2")
@@ -55,6 +58,12 @@ class JarvisHUD(QMainWindow):
         self.timer.timeout.connect(self.update_stats)
         self.timer.start(1000)
 
+        #If code works fine
+        #threading.Thread(
+        #    target=self.listen_action,
+        #    daemon=True
+        #).start()
+
     # ---------------- UI Layout ----------------
     def init_ui(self):
         central = QWidget(self)
@@ -62,13 +71,13 @@ class JarvisHUD(QMainWindow):
 
         main_layout = QGridLayout(central)
 
-        # Header
+        # ================= HEADER =================
         self.header = QLabel("STARK_IND_OS v4.2  |  CORE ONLINE")
         self.header.setFont(QFont("Orbitron", 16))
         self.header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(self.header, 0, 0, 1, 3)
 
-        # Left stats panel
+        # ================= LEFT STATS =================
         self.cpu = QProgressBar()
         self.ram = QProgressBar()
         self.net = QProgressBar()
@@ -88,27 +97,31 @@ class JarvisHUD(QMainWindow):
         stats_widget.setLayout(stats_layout)
         main_layout.addWidget(stats_widget, 1, 0)
 
-        # Center HUD display
+        # ================= CENTER HUD =================
         self.core_display = QLabel("◉ SYSTEMS ONLINE ◉\nAwaiting Command…")
         self.core_display.setFont(QFont("Orbitron", 14))
         self.core_display.setAlignment(Qt.AlignmentFlag.AlignCenter)
         main_layout.addWidget(self.core_display, 1, 1)
 
-        # Right chat panel
+        # ================= RIGHT CHAT =================
         self.chat = QTextEdit()
         self.chat.setReadOnly(True)
         self.chat.append("Jarvis: Systems online, Sir. How can I assist you today?")
         main_layout.addWidget(self.chat, 1, 2)
 
-        # Bottom controls
+        # ================= BOTTOM CONTROLS =================
         self.listen_btn = QPushButton("🎤 Listen")
         self.listen_btn.clicked.connect(self.listen_action)
+
+        self.wake_btn = QPushButton("👂 Wake Mode")
+        self.wake_btn.clicked.connect(self.start_wake_mode)
 
         self.dark_btn = QPushButton("🌙 Toggle Dark Mode")
         self.dark_btn.clicked.connect(self.toggle_dark_mode)
 
         bottom_layout = QHBoxLayout()
         bottom_layout.addWidget(self.listen_btn)
+        bottom_layout.addWidget(self.wake_btn)
         bottom_layout.addWidget(self.dark_btn)
 
         bottom_widget = QWidget()
@@ -117,24 +130,38 @@ class JarvisHUD(QMainWindow):
 
     # ---------------- Actions ----------------
     def listen_action(self):
-        self.core_display.setText("🎤 Listening…")
-        QApplication.processEvents()
+        self.core_display.setText("💤 Sleeping… Say 'Hey Buddy'")
+
+        while True:
+            if wait_for_wake_word():
+                break
+
+        self.core_display.setText("👁️ Awake. Listening…")
+        self.voice.speak("Yes sir?")
 
         command = listen_from_mic()
-        self.chat.append(f"You: {command}")
+        if not command:
+            self.voice.speak("I didn't catch that.")
+            return
 
+        self.chat.append(f"You: {command}")
         self.core_display.setText("⚙ Processing…")
-        QApplication.processEvents()
 
         response = process_command(command)
 
-        # 1️⃣ Acknowledge
-        if response.get("ack"):
-            self.chat.append(f"Jarvis: {response['ack']}")
-            self.voice.speak(response["ack"])
+        self.chat.append(f"Buddy: {response['text']}")
+        self.core_display.setText("✅ Command Executed")
 
-        # Small pause feels natural
-        QTimer.singleShot(600, lambda: self._final_response(response))
+        self.voice.speak(f"{response['ack']} {response['speech']}")
+    
+    def start_wake_mode(self):
+        self.chat.append("Buddy: Wake word listening enabled.")
+        self.core_display.setText("💤 Sleeping… Say 'Hey Buddy'")
+        
+        threading.Thread(
+            target=self.listen_action,
+            daemon=True
+        ).start()
 
     def _final_response(self, response):
         result = response.get("result", "")
